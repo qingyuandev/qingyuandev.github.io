@@ -98,3 +98,4 @@
 .desktop-cat-button:hover .cat-tail{animation-duration:1.2s}
 .desktop-cat-button:hover .cat-face{filter:brightness(1.08)}
 @media(prefers-reduced-motion:reduce){.desktop-cat *{animation:none!important;transition:none!important}.cat-face{transform:none}}
+.os-icon .os-cat-icon{width:28px;height:27px;margin:0}

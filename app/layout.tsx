@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Qingyuan Ma — Game Developer',
+  title: 'Qingyuan Ma - Portfolio',
   description: 'Game engineering, real-time graphics and AI. Selected work by Qingyuan Ma.',
 };
 

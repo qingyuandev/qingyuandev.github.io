@@ -99,9 +99,3 @@
 .desktop-cat-button:hover .cat-face{filter:brightness(1.08)}
 @media(prefers-reduced-motion:reduce){.desktop-cat *{animation:none!important;transition:none!important}.cat-face{transform:none}}
 .os-icon .os-cat-icon{width:28px;height:27px;margin:0}
-.cat-speech{position:absolute;right:33px;bottom:100%;margin-bottom:2px;padding:10px 17px;border:2px solid #765563;border-radius:15px 15px 15px 5px;background:#fff6ed;color:#493442;box-shadow:3px 3px 0 #68435333;pointer-events:none;animation:cat-speech-appear 3.4s ease both}
-.cat-speech:after{content:'';position:absolute;bottom:-7px;left:16px;width:10px;height:10px;background:#fff6ed;border-right:2px solid #765563;border-bottom:2px solid #765563;transform:rotate(45deg)}
-.cat-speech-text{display:block;overflow:hidden;white-space:nowrap;font:600 18px/1.3 'Courier New',monospace;width:3ch;animation:cat-type .75s steps(3,end) both}
-@keyframes cat-type{from{width:0}to{width:3ch}}
-@keyframes cat-speech-appear{0%{opacity:0;transform:translateY(4px)}7%,86%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-3px)}}
-@media(prefers-reduced-motion:reduce){.cat-speech,.cat-speech-text{animation:none}}

@@ -1,92 +1,143 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-type Item={id:string;title:string;image:string};
-export default function RetroDesktop({items,onOpen}:{items:Item[];onOpen:(id:string)=>void}) {
- const mount=useRef<HTMLDivElement>(null), openRef=useRef(onOpen), pauseRef=useRef(false);
- const [ready,setReady]=useState(false),[failed,setFailed]=useState(false),[paused,setPaused]=useState(false);
- openRef.current=onOpen;
- useEffect(()=>{pauseRef.current=paused},[paused]);
+import { createPortal } from 'react-dom';
+import DesktopOS, { type DesktopProject } from './desktop-os';
+
+export default function RetroDesktop({items}:{items:DesktopProject[]}) {
+ const guide=useRef<HTMLDivElement>(null);
+ const mount=useRef<HTMLDivElement>(null),stageRef=useRef(0),flatRef=useRef(false),[stage,setStage]=useState(0),[flat,setFlat]=useState(false),[ready,setReady]=useState(false),[failed,setFailed]=useState(false),[screen,setScreen]=useState<HTMLDivElement|null>(null),[flatTarget,setFlatTarget]=useState<HTMLDivElement|null>(null),enterButton=useRef<HTMLButtonElement>(null);
+ function move(next:number){stageRef.current=next;setStage(next)}
+ useEffect(()=>{flatRef.current=flat;if(flat){const old=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=old;enterButton.current?.focus()}}},[flat]);
+ useEffect(()=>{if(screen)screen.inert=stage!==2||flat},[screen,stage,flat]);
+ useEffect(()=>{if(!screen||!flatTarget||!flat)return;const parent=screen.parentElement,styles=screen.style.cssText;flatTarget.appendChild(screen);screen.style.cssText='width:100%;height:100%;position:relative;transform:none;';screen.inert=false;return()=>{screen.style.cssText=styles;parent?.appendChild(screen);screen.inert=stageRef.current!==2}},[flat,screen,flatTarget]);
+ useEffect(()=>{if(!flat||!flatTarget)return;const dialog=flatTarget.parentElement!;const previous=document.activeElement as HTMLElement|null;const siblings:{node:HTMLElement;inert:boolean}[]=[];let branch:HTMLElement=dialog;while(branch.parentElement&&branch!==document.body){Array.from(branch.parentElement.children).forEach(node=>{if(node!==branch&&node instanceof HTMLElement){siblings.push({node,inert:node.inert});node.inert=true}});branch=branch.parentElement}dialog.querySelector<HTMLButtonElement>('button')?.focus();const trap=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;const nodes=Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],video[controls],iframe')).filter(n=>n.getClientRects().length>0);const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}};dialog.addEventListener('keydown',trap);return()=>{siblings.forEach(({node,inert})=>{node.inert=inert});dialog.removeEventListener('keydown',trap);previous?.focus()}},[flat,flatTarget]);
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){if(flat)setFlat(false);else if(stage>0)move(0)}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[flat,stage]);
  useEffect(()=>{
-  let dispose=()=>{},cancelled=false;
-  async function create(){
-   const THREE=await import('three');
-   const {RoundedBoxGeometry}=await import('three/addons/geometries/RoundedBoxGeometry.js');
-   const {OutlineEffect}=await import('three/addons/effects/OutlineEffect.js');
+  let cancelled=false,dispose=()=>{};
+  async function setup(){
+   const THREE=await import('three');const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');const {CSS3DRenderer,CSS3DObject}=await import('three/addons/renderers/CSS3DRenderer.js');const {createSceneAmbience}=await import('./scene-ambience');
    if(cancelled||!mount.current)return;
    const host=mount.current,renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
-   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;renderer.toneMappingExposure=1;
-   host.appendChild(renderer.domElement);renderer.domElement.setAttribute('aria-hidden','true');
-   const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-7,7,4,-4,.1,70);camera.position.set(3.8,2.8,11);camera.lookAt(.3,.5,0);
-   const outline=new OutlineEffect(renderer,{defaultThickness:.0012,defaultColor:[.16,.145,.11],defaultAlpha:1});
-   scene.add(new THREE.HemisphereLight(0xfff9e9,0xaaa58b,.8));
-   const key=new THREE.DirectionalLight(0xffffff,2.05);key.position.set(-3,7,5);key.castShadow=true;key.shadow.mapSize.set(1024,1024);key.shadow.camera.left=-8;key.shadow.camera.right=8;key.shadow.camera.top=8;key.shadow.camera.bottom=-8;key.shadow.normalBias=.04;scene.add(key);
-   
-   const computer=new THREE.Group();computer.rotation.y=-.13;computer.scale.setScalar(1.4);computer.position.set(-.3,.05,0);scene.add(computer);
-   const ramp=new THREE.DataTexture(new Uint8Array([150,205,250]),3,1,THREE.RedFormat);ramp.minFilter=THREE.NearestFilter;ramp.magFilter=THREE.NearestFilter;ramp.generateMipmaps=false;ramp.needsUpdate=true;
-   const ivory=new THREE.MeshToonMaterial({color:0xe4e0c9,gradientMap:ramp}),dark=new THREE.MeshToonMaterial({color:0x666653,gradientMap:ramp}),beige=new THREE.MeshToonMaterial({color:0xbcbba4,gradientMap:ramp}),purple=new THREE.MeshToonMaterial({color:0xebce4f,gradientMap:ramp});
-   ivory.userData.outlineParameters={thickness:.0012};beige.userData.outlineParameters={thickness:.0007};dark.userData.outlineParameters={thickness:.0007};purple.userData.outlineParameters={thickness:.0007};
-
-   function box(w:number,h:number,d:number,x:number,y:number,z:number,mat=ivory,r=.04,parent=computer){const m=new THREE.Mesh(new RoundedBoxGeometry(w,h,d,2,r),mat);m.position.set(x,y,z);m.castShadow=parent===computer;m.receiveShadow=parent===computer;parent.add(m);return m}
-   // The monitor is actual 3D geometry, with a recessed screen and a deep CRT case.
-   box(2.5,2.03,1.55,-.25,.7,-.27,ivory,.13);box(2.55,2.04,.26,-.25,.7,.54,ivory,.12);
-   box(2.16,1.6,.1,-.25,.79,.695,beige,.09);box(2.02,1.47,.08,-.25,.79,.751,dark,.08);
-   box(.34,.4,.5,-.25,-.48,-.1,beige,.05);box(1.5,.17,1.05,-.25,-.74,-.07,ivory,.07);
-   function canvasTexture(w:number,h:number,paint:(c:CanvasRenderingContext2D)=>void){const el=document.createElement('canvas');el.width=w;el.height=h;const c=el.getContext('2d')!;paint(c);const texture=new THREE.CanvasTexture(el);texture.colorSpace=THREE.SRGBColorSpace;return texture}
-   const screenTexture=canvasTexture(1024,768,c=>{c.fillStyle='#f3a0c6';c.fillRect(0,0,1024,768);const grad=c.createLinearGradient(0,0,1024,650);grad.addColorStop(0,'#f09bc2');grad.addColorStop(1,'#f09bc2');c.fillStyle=grad;c.fillRect(0,0,1024,714);
-    const win=(x:number,y:number,w:number,h:number,title:string)=>{c.fillStyle='#161b44';c.fillRect(x+9,y+10,w,h);c.fillStyle='#e4dfc4';c.fillRect(x,y,w,h);c.strokeStyle='#fff';c.lineWidth=4;c.strokeRect(x+2,y+2,w-4,h-4);c.fillStyle='#b52e73';c.fillRect(x+7,y+7,w-14,37);c.fillStyle='white';c.font='bold 24px monospace';c.fillText(title,x+18,y+33);c.fillStyle='#e4dfc4';c.fillRect(x+w-36,y+13,23,23);c.fillStyle='#121321';c.fillText('×',x+w-33,y+32)};
-    win(155,178,734,385,'C:\\QINGYUAN\\WELCOME.exe');c.fillStyle='#f6b6d3';c.fillRect(169,226,706,320);c.fillStyle='#aa2163';c.font='bold 62px monospace';c.fillText('Hello, world!',200,320);c.font='31px monospace';c.fillText("I'm Qingyuan Ma.",202,380);c.font='24px monospace';c.fillStyle='#98375e';c.fillText('GAME DEVELOPER + GRAPHICS',202,427);c.fillStyle='#ecdb64';c.fillRect(201,462,290,55);c.strokeStyle='#626657';c.lineWidth=2;c.strokeRect(201,462,290,55);c.fillStyle='#242839';c.font='bold 24px monospace';c.fillText('Explore my work >',214,498);
-    c.fillStyle='#e5d997';c.fillRect(44,48,49,38);c.fillRect(44,39,25,12);c.fillStyle='white';c.font='21px monospace';c.fillText('Projects',25,118);c.fillStyle='#c4c6d0';c.fillRect(0,714,1024,54);c.fillStyle='#fff';c.fillRect(0,714,1024,3);c.fillStyle='#d4d5da';c.fillRect(7,723,127,36);c.strokeStyle='#6d6b74';c.strokeRect(7,723,127,36);c.fillStyle='#aa2163';c.font='bold 25px monospace';c.fillText('✳ Start',17,750);c.font='22px monospace';c.fillText('portfolio.exe',176,748);c.fillText('09:07',918,748);
-    c.fillStyle='#071a3510';for(let y=0;y<768;y+=4)c.fillRect(0,y,1024,1);
-   });
-   const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.94,1.4),new THREE.MeshBasicMaterial({map:screenTexture,toneMapped:false}));screen.position.set(-.25,.79,.799);computer.add(screen);
-   box(.17,.07,.035,.73,-.136,.704,beige,.015);const led=new THREE.Mesh(new THREE.SphereGeometry(.025,10,8),new THREE.MeshBasicMaterial({color:0xe8d354}));led.position.set(.59,-.135,.72);computer.add(led);
-   const badgeTexture=canvasTexture(512,80,c=>{c.fillStyle='#65676a';c.font='bold 32px monospace';c.fillText('QINGYUAN 98',10,53)});const badge=new THREE.Mesh(new THREE.PlaneGeometry(.65,.1),new THREE.MeshBasicMaterial({map:badgeTexture,transparent:true}));badge.position.set(-.79,-.12,.71);computer.add(badge);
-   // Horizontal system unit under the CRT, matching the supplied illustration.
-   box(2.76,.46,1.75,-.25,-1.035,.02,ivory,.025);
-   box(.56,.07,.035,.5,-1.085,.919,beige,.008);
-   box(.54,.024,.019,.5,-1.075,.944,dark,.004);
-   box(.09,.05,.04,-1.37,-1.084,.934,purple,.008);
-   for(let i=0;i<5;i++)box(.014,.028,.54,1.138,-.905-i*.055,-.03,beige,.004);
-   for(let i=0;i<5;i++)box(.018,.021,.59,1.015,.86-i*.12,-.39,beige,.004);
-   // Keyboard and mouse sit in front of the monitor.
-   const keyboard=new THREE.Group();keyboard.position.set(-.45,-1.48,1.64);keyboard.rotation.x=.07;computer.add(keyboard);box(2.5,.18,.86,0,0,0,ivory,.05,keyboard);
-   for(let row=0;row<4;row++)for(let col=0;col<13;col++)box(.15,.075,.14,-1.09+col*.18,.12,-.3+row*.17,(row===0&&col===0)?purple:beige,.017,keyboard);
-   box(.91,.075,.12,-.1,.12,.36,beige,.016,keyboard);
-   const mouse=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),ivory);mouse.scale.set(.24,.12,.35);mouse.position.set(1.42,-1.49,1.74);mouse.castShadow=true;computer.add(mouse);box(.017,.035,.16,1.42,-1.372,1.62,beige,.004);
-   const cableCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(1.42,-1.5,1.4),new THREE.Vector3(2.05,-1.42,.95),new THREE.Vector3(1.65,-1.34,.2),new THREE.Vector3(1.12,-1.1,-.6)]);computer.add(new THREE.Mesh(new THREE.TubeGeometry(cableCurve,28,.018,6,false),beige));
-   const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.ShadowMaterial({opacity:.21,color:0x003f36}));ground.rotation.x=-Math.PI/2;ground.position.y=-1.43;ground.receiveShadow=true;ground.visible=false;scene.add(ground);
-   const cards:{group:InstanceType<typeof THREE.Group>;hit:InstanceType<typeof THREE.Mesh>;id:string;phase:number}[]=[];const loader=new THREE.TextureLoader();
-   items.forEach((item,i)=>{const group=new THREE.Group();scene.add(group);box(2.13,1.5,.055,0,0,0,ivory,.015,group);
-    const barTex=canvasTexture(640,70,c=>{c.fillStyle=i%2?'#c64083':'#a7306c';c.fillRect(0,0,640,70);c.fillStyle='#fff';c.font='bold 24px monospace';c.fillText(item.title.slice(0,29),18,45);c.fillStyle='#d4d4db';c.fillRect(581,12,45,43);c.fillStyle='#27264a';c.font='32px monospace';c.fillText('×',589,44)});
-    const bar=new THREE.Mesh(new THREE.PlaneGeometry(2.03,.22),new THREE.MeshBasicMaterial({map:barTex,toneMapped:false}));bar.position.set(0,.605,.04);group.add(bar);
-    const mat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});const face=new THREE.Mesh(new THREE.PlaneGeometry(2.03,1.16),mat);face.position.set(0,-.105,.042);face.userData.projectId=item.id;group.add(face);
-    loader.load('/media/'+item.image,tex=>{if(cancelled){tex.dispose();return}tex.colorSpace=THREE.SRGBColorSpace;const ar=tex.image.width/tex.image.height;const target=2.03/1.16;if(ar>target){tex.repeat.x=target/ar;tex.offset.x=(1-tex.repeat.x)/2}else{tex.repeat.y=ar/target;tex.offset.y=(1-tex.repeat.y)/2}mat.map=tex;mat.needsUpdate=true});
-    cards.push({group,hit:face,id:item.id,phase:i/items.length*Math.PI*2+.3});
-   });
-   scene.traverse(obj=>{if(obj instanceof THREE.Mesh){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>{if(!(m instanceof THREE.MeshToonMaterial))m.userData.outlineParameters={visible:false}})}});
-   const pointer=new THREE.Vector2(99,99),raycaster=new THREE.Raycaster();let offset=0,drag=false,lastX=0,moved=0,hover='',frame=0,visible=true,previous=0,time=0;
-   const reduced=window.matchMedia('(prefers-reduced-motion: reduce)');if(reduced.matches){pauseRef.current=true;setPaused(true)}
-   function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);const aspect=w/h;const viewHeight=w<650?12.8:Math.max(7.3,12.5/aspect);camera.left=-viewHeight*aspect/2;camera.right=viewHeight*aspect/2;camera.top=viewHeight/2;camera.bottom=-viewHeight/2;camera.updateProjectionMatrix();computer.scale.setScalar(w<650?1.05:1.4)}
-   const ro=new ResizeObserver(resize);ro.observe(host);resize();
-   const observer=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting},{threshold:0});observer.observe(host);
-   function point(e:PointerEvent){const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1)}
-   const move=(e:PointerEvent)=>{point(e);if(drag){offset+=(e.clientX-lastX)*.006;moved+=Math.abs(e.clientX-lastX);lastX=e.clientX}};
-   const down=(e:PointerEvent)=>{drag=true;lastX=e.clientX;moved=0;point(e);renderer.domElement.setPointerCapture(e.pointerId)};
-   const up=(e:PointerEvent)=>{drag=false;point(e);if(moved<8){raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(cards.map(c=>c.hit))[0];if(hit)openRef.current(hit.object.userData.projectId)}if(renderer.domElement.hasPointerCapture(e.pointerId))renderer.domElement.releasePointerCapture(e.pointerId)};
-   const leave=()=>{pointer.set(99,99);hover=''};
-   const keys=(e:KeyboardEvent)=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();offset+=e.key==='ArrowLeft'?-.18:.18}};
-   renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('pointercancel',up);renderer.domElement.addEventListener('pointerleave',leave);host.addEventListener('keydown',keys);
+   renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x000000,0);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;renderer.toneMappingExposure=1;renderer.shadowMap.enabled=false;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+   const css=new CSS3DRenderer();css.domElement.className='studio-css';renderer.domElement.className='studio-webgl';renderer.domElement.setAttribute('aria-hidden','true');host.appendChild(css.domElement);host.appendChild(renderer.domElement);
+   const scene=new THREE.Scene(),domScene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(36.86989765,1,.1,100);
+   const gltf=await new GLTFLoader().loadAsync('/models/reference-computer.glb?v=smile-star-nudge');
+   if(cancelled){gltf.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const materials=Array.isArray(o.material)?o.material:[o.material];materials.forEach(m=>m.dispose())}});renderer.dispose();renderer.domElement.remove();css.domElement.remove();return}
+   const computer=gltf.scene;scene.add(computer);const screenCovers:InstanceType<typeof THREE.Object3D>[]=[];
+   computer.traverse(o=>{if(o.name.startsWith('ScreenCover'))screenCovers.push(o)});
+   const keys=new Map<InstanceType<typeof THREE.Object3D>,{rest:number;pressedAt:number}>();
+   computer.traverse(o=>{if(o.name.startsWith('Keycap_')&&!o.parent?.name.startsWith('Keycap_'))keys.set(o,{rest:o.position.y,pressedAt:-Infinity})});
+   const ambience=createSceneAmbience(computer);
+   let powerOn=false,powerAt=-Infinity;
+   // Transparent depth-writing aperture reveals the DOM behind the WebGL canvas.
+   const aperture=new THREE.Mesh(new THREE.PlaneGeometry(2.96,2.368),new THREE.MeshBasicMaterial({color:0x000000,opacity:0,transparent:true,blending:THREE.NoBlending}));aperture.position.set(0,2.97,.659);scene.add(aperture);
+   const element=document.createElement('div');element.className='physical-screen';element.style.width='1280px';element.style.height='1024px';element.inert=true;setScreen(element);
+   const screenObject=new CSS3DObject(element);screenObject.position.copy(aperture.position);screenObject.scale.setScalar(2.96/1280);domScene.add(screenObject);
+   // A separate glass layer keeps DOM text interactive under a recessed CRT surface.
+   const glassMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,toneMapped:false,uniforms:{uStrength:{value:1}},vertexShader:`varying vec2 vUv; varying vec3 vWorld; void main(){vUv=uv;vec4 world=modelMatrix*vec4(position,1.);vWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}`,fragmentShader:`
+    precision highp float;varying vec2 vUv;varying vec3 vWorld;uniform float uStrength;
+    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    void main(){vec2 p=abs(vUv-.5)*2.;float edge=pow(max(p.x,p.y),10.);float corners=pow(length(p)*.7071,6.);float view=1.-abs(normalize(cameraPosition-vWorld).z);float reflection=exp(-pow((vUv.x*.7+vUv.y)-1.03,2.)/.016)*.047;float haze=exp(-length((vUv-vec2(.23,.7))*vec2(1.2,1.)))*.024;float grain=hash(floor(vUv*vec2(1600.,1280.)))*.022;float shadow=edge*.62+corners*.10+view*.17;float light=reflection+haze+grain;float a=clamp(shadow+light,0.,.78)*uStrength;vec3 c=mix(vec3(.035,.055,.055),vec3(.88,.92,.89),light/max(shadow+light,.001));gl_FragColor=vec4(c,a);}
+   `});const glass=new THREE.Mesh(new THREE.PlaneGeometry(2.958,2.366),glassMaterial);glass.position.set(0,2.97,.669);glass.renderOrder=10;scene.add(glass);
+   const bootMaterial=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,depthWrite:false,opacity:0,toneMapped:false});
+   const bootVeil=new THREE.Mesh(new THREE.PlaneGeometry(2.96,2.368),bootMaterial);bootVeil.position.set(0,2.97,.676);bootVeil.renderOrder=9;bootVeil.visible=false;scene.add(bootVeil);
+   const guidePoint=new THREE.Vector3();
+   const target=new THREE.Vector3(.65,1.45,.55),destination=new THREE.Vector3(),focus=new THREE.Vector3();let frame=0,last=0,visible=true,aspect=1,dirty=true,previousStage=-1;const reduced=matchMedia('(prefers-reduced-motion: reduce)');camera.position.set(-7.8,3.45,10.8);camera.lookAt(target);
+   function resize(){const w=host.clientWidth,h=host.clientHeight;aspect=w/h;camera.aspect=aspect;camera.updateProjectionMatrix();renderer.setSize(w,h);css.setSize(w,h);dirty=true}
+   const observer=new ResizeObserver(resize);observer.observe(host);resize();const intersection=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting});intersection.observe(host);
    const lost=(e:Event)=>{e.preventDefault();setFailed(true)};renderer.domElement.addEventListener('webglcontextlost',lost);
-   function animate(now:number){frame=requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.04);previous=now;if(!visible||document.hidden)return;
-    if(!pauseRef.current&&!drag&&!hover)time+=dt*.065;
-    cards.forEach((card,i)=>{const angle=card.phase+time+offset;card.group.position.set(Math.cos(angle)*4.45,Math.sin(angle)*2.1+1,Math.sin(angle+.6)*2.15-.8);card.group.quaternion.copy(camera.quaternion);card.group.rotateZ(Math.sin(angle)*.045);const target=hover===card.id?1.07:1;card.group.scale.lerp(new THREE.Vector3(target,target,target),.12);if(!pauseRef.current)card.group.position.y+=Math.sin(now*.0006+i)*.08});
-    raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(cards.map(c=>c.hit))[0];hover=hit?.object.userData.projectId||'';renderer.domElement.style.cursor=drag?'grabbing':hover?'pointer':'grab';outline.render(scene,camera);
+   const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+   const orbit=new THREE.Spherical(),offset=new THREE.Vector3();
+   let yaw=0,pitch=0,drag:{id:number;x:number;y:number;yaw:number;pitch:number;moved:boolean}|null=null;
+   let wheelTotal=0,lastWheel=0,wheelDirection=0,wheelLockedUntil=0;
+   function enterScreen(){ambience.setStickerHover(null,performance.now());yaw=0;pitch=0;wheelTotal=0;wheelLockedUntil=performance.now()+1000;if(innerWidth<700)setFlat(true);else move(2)}
+   function screenHit(x:number,y:number){
+    const bounds=host.getBoundingClientRect();pointer.set((x-bounds.left)/bounds.width*2-1,-(y-bounds.top)/bounds.height*2+1);
+    camera.updateMatrixWorld();scene.updateMatrixWorld(true);raycaster.setFromCamera(pointer,camera);
+    const hit=raycaster.intersectObject(aperture)[0],front=raycaster.intersectObject(computer,true)[0];
+    return !!hit&&(!front||front.distance>=hit.distance-.08);
+   }
+   function keyHit(x:number,y:number){
+    const bounds=host.getBoundingClientRect();pointer.set((x-bounds.left)/bounds.width*2-1,-(y-bounds.top)/bounds.height*2+1);
+    camera.updateMatrixWorld();scene.updateMatrixWorld(true);raycaster.setFromCamera(pointer,camera);
+    let obj:InstanceType<typeof THREE.Object3D>|null=raycaster.intersectObject(computer,true)[0]?.object??null;
+    while(obj&&!keys.has(obj))obj=obj.parent;
+    return obj;
+   }
+   function pressKey(key:InstanceType<typeof THREE.Object3D>){
+    keys.get(key)!.pressedAt=performance.now();dirty=true;
+    if(!powerOn){powerOn=true;powerAt=performance.now();screenCovers.forEach(o=>{o.visible=false})}
+   }
+   function pointerDown(e:PointerEvent){
+    if(stageRef.current>=2||flatRef.current||!e.isPrimary||e.button!==0)return;
+    ambience.setStickerHover(null,performance.now());
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch,moved:false};host.setPointerCapture(e.pointerId);
+   }
+   function pointerMove(e:PointerEvent){
+    if(stageRef.current>=2||flatRef.current)return;
+    if(!drag){
+     host.style.cursor=screenHit(e.clientX,e.clientY)||keyHit(e.clientX,e.clientY)?'pointer':'grab';
+     const hit=raycaster.intersectObject(computer,true)[0]?.object??null;
+     ambience.setStickerHover(e.pointerType==='touch'?null:hit,performance.now());return;
+    }
+    if(drag.id!==e.pointerId)return;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(Math.hypot(dx,dy)>6)drag.moved=true;
+    if(!drag.moved)return;
+    yaw=THREE.MathUtils.clamp(drag.yaw-dx*.003,-.30,.30);
+    pitch=THREE.MathUtils.clamp(drag.pitch-dy*.002,-.14,.14);
+    host.style.cursor='grabbing';dirty=true;
+   }
+   function pointerUp(e:PointerEvent){
+    if(!drag||drag.id!==e.pointerId)return;
+    const clicked=!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<=6;
+    drag=null;if(host.hasPointerCapture(e.pointerId))host.releasePointerCapture(e.pointerId);host.style.cursor='';
+    if(clicked&&stageRef.current<2){const key=keyHit(e.clientX,e.clientY);if(key)pressKey(key);else if(screenHit(e.clientX,e.clientY))enterScreen()}
+   }
+   function clearStickerHover(){ambience.setStickerHover(null,performance.now())}
+   function cancelDrag(){drag=null;host.style.cursor='';clearStickerHover()}
+   function wheel(e:WheelEvent){
+    if(flatRef.current||e.ctrlKey||Math.abs(e.deltaX)>Math.abs(e.deltaY)||!e.deltaY)return;
+    // Keep article and sidebar scrolling native; the bezel and desktop remain zoom targets.
+    if(stageRef.current>=2&&e.target instanceof Element){
+     for(let node:Element|null=e.target;node&&node!==host;node=node.parentElement){
+      if(node instanceof HTMLElement&&node.scrollHeight>node.clientHeight+1&&/auto|scroll/.test(getComputedStyle(node).overflowY)){
+       wheelTotal=0;lastWheel=performance.now();return;
+      }
+     }
+    }
+    e.preventDefault();
+    const now=performance.now(),gap=now-lastWheel,direction=Math.sign(e.deltaY);lastWheel=now;
+    // A new gesture is required after zooming, so touchpad inertia cannot bounce back out.
+    if(now<wheelLockedUntil){wheelTotal=0;return}
+    if(gap>180||direction!==wheelDirection)wheelTotal=0;
+    wheelDirection=direction;
+    if((stageRef.current<2&&direction>0)||(stageRef.current>=2&&direction<0)){wheelTotal=0;return}
+    wheelTotal+=Math.abs(e.deltaY)*(e.deltaMode===1?16:e.deltaMode===2?host.clientHeight:1);
+    if(wheelTotal<60)return;
+    wheelTotal=0;wheelLockedUntil=now+1000;cancelDrag();
+    if(stageRef.current<2)enterScreen();else{move(0);host.focus({preventScroll:true})}
+   }
+   host.addEventListener('pointerdown',pointerDown);host.addEventListener('pointermove',pointerMove);host.addEventListener('pointerup',pointerUp);host.addEventListener('pointercancel',cancelDrag);host.addEventListener('lostpointercapture',cancelDrag);host.addEventListener('wheel',wheel,{passive:false,capture:true});
+   host.addEventListener('pointerleave',clearStickerHover);window.addEventListener('blur',clearStickerHover);
+   function animate(now:number){frame=requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.05);last=now;if(!visible||document.hidden||flatRef.current)return;const s=stageRef.current;
+    if(ambience.update(now,s<2,reduced.matches,powerOn))dirty=true;
+    keys.forEach((key,obj)=>{const t=(now-key.pressedAt)/320;const y=key.rest-(t>=0&&t<1?.055*Math.sin(Math.PI*t):0);if(obj.position.y!==y){obj.position.y=y;dirty=true}});
+    const bootOpacity=powerOn&&s<2?1-THREE.MathUtils.smoothstep(now-powerAt,0,reduced.matches?1:650):0;
+    if(bootMaterial.opacity!==bootOpacity){bootMaterial.opacity=bootOpacity;dirty=true}bootVeil.visible=bootOpacity>0;
+    if(s<2){const k=Math.max(1,1/aspect);focus.set(.65,1.45,.55);offset.set(-7.8,3.45,10.8).sub(focus);orbit.setFromVector3(offset);orbit.theta+=yaw;orbit.phi+=pitch;destination.setFromSpherical(orbit).multiplyScalar(k).add(focus)}else{const distance=Math.max(4.38,4.38/aspect);destination.set(0,3.00,.659+distance);focus.set(0,2.97,.659)}
+    if(previousStage!==s){if(s>=2)powerOn=true;screenCovers.forEach(o=>{o.visible=s<2&&!powerOn});previousStage=s;dirty=true}
+    if(!dirty&&camera.position.distanceToSquared(destination)<.00000001&&target.distanceToSquared(focus)<.00000001)return;const blend=reduced.matches?1:1-Math.exp(-dt*3.6);camera.position.lerp(destination,blend);target.lerp(focus,blend);camera.lookAt(target);renderer.render(scene,camera);css.render(domScene,camera);
+    if(guide.current){guidePoint.set(0,2.97,.8).project(camera);guide.current.style.left=`${(guidePoint.x*.5+.5)*host.clientWidth}px`;guide.current.style.top=`${(-guidePoint.y*.5+.5)*host.clientHeight}px`;guide.current.style.visibility=s<2?'visible':'hidden'}dirty=false;
    }frame=requestAnimationFrame(animate);setReady(true);
-   dispose=()=>{cancelAnimationFrame(frame);ro.disconnect();observer.disconnect();host.removeEventListener('keydown',keys);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',up);renderer.domElement.removeEventListener('pointerleave',leave);renderer.domElement.removeEventListener('webglcontextlost',lost);scene.traverse(obj=>{if(obj instanceof THREE.Mesh){obj.geometry.dispose();const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>{if('map'in m)(m.map as InstanceType<typeof THREE.Texture>|null)?.dispose();m.dispose()})}});ramp.dispose();renderer.dispose();renderer.domElement.remove()};
-  }
-  create().catch(()=>{if(!cancelled)setFailed(true)});
-  return()=>{cancelled=true;dispose()};
- },[items]);
- return <div className="retro-scene"><div className="scene-canvas" ref={mount} tabIndex={0} role="group" aria-label="Interactive retro desktop. Drag horizontally or use arrow keys to rotate project windows. Use the project buttons below to open details."/>{!ready&&!failed&&<div className="scene-loading"><span>Starting Qingyuan OS…</span><div className="boot-track"/></div>}{failed&&<div className="scene-fallback"><h2>Welcome to my desktop.</h2><p>Explore the projects below.</p></div>}<div className="scene-toolbar"><span>DRAG TO ORBIT · CLICK A PROJECT</span><button onClick={()=>setPaused(!paused)} aria-pressed={paused}>{paused?'▶ Resume motion':'Ⅱ Pause motion'}</button></div><div className="scene-projects" aria-label="Open a featured project">{items.map(p=><button key={p.id} onClick={()=>onOpen(p.id)}><span aria-hidden="true">▧</span>{p.title.replace('.exe','')}</button>)}</div></div>;
+   dispose=()=>{cancelAnimationFrame(frame);observer.disconnect();intersection.disconnect();host.removeEventListener('pointerdown',pointerDown);host.removeEventListener('pointermove',pointerMove);host.removeEventListener('pointerup',pointerUp);host.removeEventListener('pointercancel',cancelDrag);host.removeEventListener('lostpointercapture',cancelDrag);host.removeEventListener('wheel',wheel,true);host.removeEventListener('pointerleave',clearStickerHover);window.removeEventListener('blur',clearStickerHover);host.style.cursor='';renderer.domElement.removeEventListener('webglcontextlost',lost);scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{if('map'in m)(m.map as InstanceType<typeof THREE.Texture>|null)?.dispose();m.dispose()})}});renderer.dispose();renderer.domElement.remove();css.domElement.remove();element.remove()};
+  }setup().catch(()=>{if(!cancelled)setFailed(true)});return()=>{cancelled=true;dispose()};
+ },[]);
+ return <div className={'studio stage-'+stage+(flat?' studio-flat':'')}>
+  <div className="studio-world" ref={mount} role={stage<2?'button':undefined} tabIndex={stage<2?0:-1} aria-label={stage<2?'Enter Qingyuan’s computer':undefined} onKeyDown={e=>{if(stage<2&&(e.key==='Enter'||e.key===' ')){e.preventDefault();if(innerWidth<700)setFlat(true);else move(2)}}}/>
+  {ready&&!failed&&stage<2&&!flat&&<div ref={guide} className="screen-guide" role="img" aria-label="Click the screen to enter"><svg className="screen-guide-cursor" viewBox="0 0 64 80" aria-hidden="true"><path d="M10 5V59L24 46L36 71L47 66L35 41H55Z" fill="currentColor" stroke="#24271b" strokeWidth="3" strokeLinejoin="miter"/></svg></div>}
+  {!ready&&!failed&&<p className="studio-loading">Setting up the desk…</p>}{failed&&<div className="studio-error"><p>The 3D studio couldn’t start on this device.</p><button onClick={()=>setFlat(true)}>Open the portfolio</button></div>}
+  <div className="flat-desktop" hidden={!flat} role={flat?'dialog':undefined} aria-modal={flat?true:undefined} aria-label="Qingyuan portfolio desktop"><div ref={setFlatTarget} className="flat-desktop-host"/></div>
+  {screen?createPortal(<DesktopOS items={items} flat={flat} onExpand={()=>setFlat(!flat)}/>,screen):flat&&flatTarget?createPortal(<DesktopOS items={items} flat onExpand={()=>setFlat(false)}/>,flatTarget):null}
+ </div>
 }
-

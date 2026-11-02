@@ -1,0 +1,10 @@
+/* The supplied illustration is the entire entry composition. */
+.studio{background:#ffffef}.studio-world{inset:0;cursor:pointer}.stage-2 .studio-world{cursor:default}.studio-world:focus-visible{outline:2px dotted #147aeb;outline-offset:-8px}.flat-desktop{padding:0;background:#ffffef}.studio-loading{font:15px QingyuanScreenSerif,serif;background:#ffffef;color:#33382e}.studio-error{background:#ffffef;color:#33382e}
+.computer-site .desktop-hero{margin:0;min-height:0;height:100%}
+.studio:not(.stage-2) .studio-world{cursor:grab;touch-action:none;user-select:none}
+.screen-guide{position:absolute;z-index:4;left:50%;top:40%;transform:translate(-50%,-50%);pointer-events:none;color:#fff5b5;width:60px;visibility:hidden}
+.screen-guide-cursor{display:block;width:100%;height:auto;filter:drop-shadow(0 0 7px #ffe88a);animation:screen-cursor-breathe 2.6s ease-in-out infinite}
+@keyframes screen-cursor-breathe{0%,100%{transform:scale(.94);opacity:.72;filter:drop-shadow(0 0 4px #ffe88a)}50%{transform:scale(1.06);opacity:1;filter:drop-shadow(0 0 15px #ffe88a)}}
+@media(prefers-reduced-motion:reduce){.screen-guide-cursor{animation:none}}
+@media(max-width:650px){.screen-guide{width:46px}}
+@media(max-width:650px){.studio-world{inset:0}.flat-desktop{padding:0}}

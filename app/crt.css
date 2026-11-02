@@ -84,15 +84,17 @@
 .os-shortcuts button:hover,.os-shortcuts button:focus-visible{background:#edbdcf33;border:1px dotted #f9e5d5;outline:none}
 @media(max-width:650px){.qos-flat .os-shortcuts{display:grid}}
 .os-cat-icon{width:23px;height:23px;display:inline-block;vertical-align:middle;color:#3c303b;margin-right:3px}
-.os-wallpaper .desktop-cat{position:absolute;width:180px;height:153px;right:62px;bottom:85px;color:#382e39;overflow:visible}
-.cat-sitting{animation:cat-sit 24s infinite}
-.cat-lying{opacity:0;animation:cat-lie 24s infinite}
-.cat-rolling{opacity:0;transform-origin:100px 112px;animation:cat-roll 24s infinite}
 .desktop-cat .cat-eyes{transform-box:fill-box;transform-origin:center;animation:cat-blink 5s infinite}
 .cat-tail{transform-origin:110px 139px;animation:cat-tail 4s ease-in-out infinite}
-@keyframes cat-sit{0%,29%,91%,100%{opacity:1}32%,88%{opacity:0}}
-@keyframes cat-lie{0%,29%,68%,100%{opacity:0}33%,64%{opacity:1}}
-@keyframes cat-roll{0%,65%{opacity:0;transform:translateY(0) rotate(0deg)}69%{opacity:1;transform:translateY(0) rotate(0deg)}77%{opacity:1;transform:translateY(8px) rotate(-180deg)}85%{opacity:1;transform:translateY(0) rotate(-360deg)}89%,100%{opacity:0;transform:translateY(0) rotate(-360deg)}}
 @keyframes cat-blink{0%,42%,46%,100%{transform:scaleY(1)}44%{transform:scaleY(.12)}}
 @keyframes cat-tail{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(5deg)}}
-@media(prefers-reduced-motion:reduce){.desktop-cat *{animation:none!important}.cat-sitting{opacity:1}.cat-lying,.cat-rolling{opacity:0}}
+.os-wallpaper{right:18px;bottom:42px;width:180px;height:153px}
+.qos .desktop-cat-button{position:absolute;inset:0;border:0;padding:0;background:none;pointer-events:auto;cursor:pointer;color:#382e39}
+.desktop-cat{display:block;width:100%;height:100%;overflow:visible}
+.desktop-cat-button:focus-visible{outline:1px dashed #f4d6e2;outline-offset:2px;border-radius:18px}
+.cat-sitting,.cat-lying{transition:opacity .35s ease}
+.is-sitting .cat-lying,.is-lying .cat-sitting{opacity:0}
+.cat-face{transform:translate(var(--cat-look-x,0px),var(--cat-look-y,0px));transition:transform .15s ease-out}
+.desktop-cat-button:hover .cat-tail{animation-duration:1.2s}
+.desktop-cat-button:hover .cat-face{filter:brightness(1.08)}
+@media(prefers-reduced-motion:reduce){.desktop-cat *{animation:none!important;transition:none!important}.cat-face{transform:none}}

@@ -1,5 +1,7 @@
+'use client';
+import { useEffect, useState, type CSSProperties } from 'react';
 function Face() {
-  return <g>
+  return <g className="cat-face">
     <path fill="currentColor" d="M48 56 46 26 66 39Q80 34 94 39L114 26 112 57Q119 88 80 91 41 88 48 56Z"/>
     <path fill="#c98da5" d="m51 36 3 17 10-10zm57 0-3 17-10-10z"/>
     <g className="cat-eyes" fill="#f8ebbd"><ellipse cx="65" cy="63" rx="4" ry="5"/><ellipse cx="95" cy="63" rx="4" ry="5"/></g>
@@ -12,7 +14,21 @@ export function CatIcon() {
 }
 
 export default function DesktopCat() {
-  return <svg className="desktop-cat" viewBox="0 0 200 170" role="img" aria-label="A little cat sitting, lying down and rolling">
+  const [lying,setLying]=useState(false);
+  const [hovered,setHovered]=useState(false);
+  const [look,setLook]=useState({x:0,y:0});
+  useEffect(()=>{
+    if(hovered||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const timer=window.setInterval(()=>setLying(v=>!v),10000);
+    return ()=>window.clearInterval(timer);
+  },[hovered,lying]);
+  return <button className={'desktop-cat-button '+(lying?'is-lying':'is-sitting')}
+    aria-label={lying?'Pet the cat: sit up':'Pet the cat: lie down'} aria-pressed={lying}
+    onClick={()=>setLying(v=>!v)} onPointerEnter={()=>setHovered(true)}
+    onPointerLeave={()=>{setHovered(false);setLook({x:0,y:0})}}
+    onPointerMove={e=>{const r=e.currentTarget.getBoundingClientRect();setLook({x:(e.clientX-r.left)/r.width*6-3,y:(e.clientY-r.top)/r.height*4-3})}}
+    style={{'--cat-look-x':`${look.x}px`,'--cat-look-y':`${look.y}px`} as CSSProperties}>
+    <svg className="desktop-cat" viewBox="0 0 200 170" aria-hidden="true">
     <ellipse cx="100" cy="150" rx="66" ry="7" fill="currentColor" opacity=".1"/>
     <g className="cat-sitting">
       <path className="cat-tail" d="M109 139Q161 150 156 116Q153 101 143 111" fill="none" stroke="currentColor" strokeWidth="13" strokeLinecap="round"/>
@@ -26,11 +42,5 @@ export default function DesktopCat() {
       <g transform="translate(-15 68) scale(.9)"><Face/></g>
       <path d="M48 146h30m36 0h21" stroke="#6f5d69" strokeWidth="3" strokeLinecap="round"/>
     </g>
-    <g className="cat-rolling">
-      <ellipse cx="100" cy="107" rx="29" ry="37" fill="currentColor"/>
-      <ellipse cx="100" cy="109" rx="14" ry="23" fill="#66545f"/>
-      <path d="M83 132Q48 146 50 118M75 98l-9-12m59 12 9-12" fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round"/>
-      <g transform="translate(28 8) scale(.9)"><Face/></g>
-    </g>
-  </svg>;
+  </svg></button>;
 }

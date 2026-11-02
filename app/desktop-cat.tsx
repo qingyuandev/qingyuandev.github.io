@@ -17,6 +17,13 @@ export default function DesktopCat() {
   const [lying,setLying]=useState(false);
   const [hovered,setHovered]=useState(false);
   const [look,setLook]=useState({x:0,y:0});
+  const [greeting,setGreeting]=useState(0);
+  useEffect(()=>{
+    if(!greeting)return;
+    const timer=window.setTimeout(()=>setGreeting(0),3400);
+    return ()=>window.clearTimeout(timer);
+  },[greeting]);
+  function sayHi(){setGreeting(n=>n+1)}
   useEffect(()=>{
     if(hovered||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     const timer=window.setInterval(()=>setLying(v=>!v),10000);
@@ -24,10 +31,12 @@ export default function DesktopCat() {
   },[hovered,lying]);
   return <button className={'desktop-cat-button '+(lying?'is-lying':'is-sitting')}
     aria-label={lying?'Pet the cat: sit up':'Pet the cat: lie down'} aria-pressed={lying}
-    onClick={()=>setLying(v=>!v)} onPointerEnter={()=>setHovered(true)}
+    onClick={()=>{setLying(v=>!v);sayHi()}} onPointerEnter={()=>{setHovered(true);sayHi()}}
+    onFocus={()=>{setHovered(true);sayHi()}} onBlur={()=>setHovered(false)}
     onPointerLeave={()=>{setHovered(false);setLook({x:0,y:0})}}
     onPointerMove={e=>{const r=e.currentTarget.getBoundingClientRect();setLook({x:(e.clientX-r.left)/r.width*6-3,y:(e.clientY-r.top)/r.height*4-3})}}
     style={{'--cat-look-x':`${look.x}px`,'--cat-look-y':`${look.y}px`} as CSSProperties}>
+    {greeting>0&&<span key={greeting} className="cat-speech" aria-hidden="true"><span className="cat-speech-text">Hi.</span></span>}
     <svg className="desktop-cat" viewBox="0 0 200 170" aria-hidden="true">
     <ellipse cx="100" cy="150" rx="66" ry="7" fill="currentColor" opacity=".1"/>
     <g className="cat-sitting">
